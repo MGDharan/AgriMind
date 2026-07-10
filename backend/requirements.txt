@@ -1,0 +1,28 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+sqlalchemy==2.0.36
+alembic==1.14.0
+psycopg2-binary==2.9.10
+asyncpg==0.30.0
+redis==5.2.1
+celery==5.4.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.2.1
+python-multipart==0.0.20
+httpx==0.28.1
+pillow==11.0.0
+pydantic-settings==2.7.0
+python-dotenv==1.0.1
+aiofiles==24.1.0
+email-validator==2.2.0
+# RAG engine (Qdrant + Ollama) — optional, degrades gracefully if absent
+qdrant-client==1.12.1
+ollama==0.4.4
+pdfplumber==0.11.4
+python-docx==1.1.2
+pandas==2.2.3
+# Vision model (Keras/TensorFlow — in requirements-base.txt)
+# NDVI prediction — in requirements-base.txt
+h5py==3.11.0
+openpyxl==3.1.5

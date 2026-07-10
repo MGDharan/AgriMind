@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-earth-700;
+  }
+  body {
+    @apply bg-earth-950 text-gray-100 font-body antialiased;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0l25.98 15v30L30 60 4.02 45V15z' fill='none' stroke='%231a2420' stroke-width='0.5'/%3E%3C/svg%3E");
+  }
+  ::selection {
+    @apply bg-moss-600/40 text-moss-glow;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-earth-900/60 backdrop-blur-xl border border-earth-700/50 rounded-2xl shadow-glass;
+  }
+  .glass-panel-hover {
+    @apply glass-panel transition-all duration-300 hover:border-moss-600/30 hover:shadow-glow;
+  }
+  .btn-primary {
+    @apply px-6 py-3 bg-gradient-to-r from-moss-600 to-moss-500 text-white font-semibold rounded-xl
+           hover:from-moss-500 hover:to-moss-400 transition-all duration-300 shadow-glow
+           active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply px-6 py-3 bg-earth-800/80 border border-earth-600 text-gray-200 font-medium rounded-xl
+           hover:bg-earth-700/80 hover:border-moss-600/40 transition-all duration-300
+           active:scale-[0.98];
+  }
+  .input-field {
+    @apply w-full px-4 py-3 bg-earth-800/50 border border-earth-600 rounded-xl text-gray-100
+           placeholder:text-gray-500 focus:outline-none focus:border-moss-500/50 focus:ring-1
+           focus:ring-moss-500/20 transition-all;
+  }
+  .agent-badge {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium
+           bg-earth-800 border border-earth-600;
+  }
+  .risk-low { @apply text-moss-400 bg-moss-600/10 border-moss-600/30; }
+  .risk-medium { @apply text-wheat-400 bg-wheat-500/10 border-wheat-500/30; }
+  .risk-high { @apply text-terra-400 bg-terra-500/10 border-terra-500/30; }
+}
+
+/* Leaflet dark theme */
+.leaflet-container {
+  background: #0f1612 !important;
+  border-radius: 1rem;
+}
+.leaflet-tile { filter: brightness(0.7) contrast(1.1) hue-rotate(15deg) saturate(0.8); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #0f1612; }
+::-webkit-scrollbar-thumb { background: #2f3d35; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3d7a3c; }

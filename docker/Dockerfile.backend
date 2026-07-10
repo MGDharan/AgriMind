@@ -1,0 +1,27 @@
+# ── AgriMind Backend ──────────────────────────────────────────────────────────
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# System deps only (minimal — TF CPU doesn't need OpenGL)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev gcc g++ libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir --upgrade pip
+
+# ── Layer 1: Heavy ML packages (cached unless requirements-base.txt changes) ─
+COPY requirements-base.txt .
+RUN pip install --no-cache-dir -r requirements-base.txt
+
+# ── Layer 2: App dependencies (changes more often) ───────────────────────────
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ── App code ──────────────────────────────────────────────────────────────────
+COPY . .
+
+RUN mkdir -p uploads uploads/knowledge
+
+EXPOSE 8000
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

@@ -1,0 +1,7 @@
+# Heavy packages — cached in a separate Docker layer
+# Only rebuilds when these change (rarely)
+tensorflow-cpu==2.13.0
+keras==2.13.1
+xgboost==2.1.4
+scikit-learn==1.6.1
+pandas==2.2.3

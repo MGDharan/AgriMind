@@ -1,0 +1,145 @@
+# ── AgriMind AI Platform — Full Stack Docker Compose ────────────────────────
+#
+# Quick start:
+#   cp backend/.env.example backend/.env   (fill SMTP credentials)
+#   docker compose up --build
+#
+# Services:
+#   postgres  — PostgreSQL 16 database
+#   redis     — Redis 7 cache / message broker
+#   backend   — FastAPI + TensorFlow + XGBoost (port 8000 internal)
+#   frontend  — React built with Nginx (port 80  → http://localhost)
+#
+# Optional (uncomment in services section):
+#   qdrant    — Vector DB for RAG Knowledge Base
+#   ollama    — Local LLM for RAG chat
+
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: agrimind_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-agri}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agri_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-agriculture}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agri} -d ${POSTGRES_DB:-agriculture}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: agrimind_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── Qdrant Vector DB (for RAG Knowledge Base) ───────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    container_name: agrimind_qdrant
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    ports:
+      - "6333:6333"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'cat /dev/null > /dev/tcp/localhost/6333' 2>/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ── Backend — FastAPI + AI Agents ──────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/Dockerfile.backend
+    container_name: agrimind_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      # Override .env with Docker service names
+      DATABASE_URL: postgresql://${POSTGRES_USER:-agri}:${POSTGRES_PASSWORD:-agri_secret}@postgres:5432/${POSTGRES_DB:-agriculture}
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: "6333"
+      CORS_ORIGINS: http://localhost,http://localhost:80,http://frontend
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads
+      - ./Warwan:/app/warwan_data:ro   # Mount Warwan dataset read-only
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" 2>/dev/null || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ── Frontend — React + Nginx ────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../docker/Dockerfile.frontend
+    container_name: agrimind_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ── Ollama (optional — for RAG Knowledge Base LLM) ─────────────────────────
+  # Uncomment to enable local LLM for the Knowledge page
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: agrimind_ollama
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   ports:
+  #     - "11434:11434"
+  #   # GPU support — uncomment if you have NVIDIA GPU:
+  #   # deploy:
+  #   #   resources:
+  #   #     reservations:
+  #   #       devices:
+  #   #         - driver: nvidia
+  #   #           count: all
+  #   #           capabilities: [gpu]
+
+volumes:
+  pgdata:
+  uploads:
+  qdrant_data:
+  # ollama_data:

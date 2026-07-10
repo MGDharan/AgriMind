@@ -1,0 +1,54 @@
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+pip-wheel-metadata/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+*.log
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.npm
+
+# Docker
+.docker/
+
+# Environment — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# Uploads / temp files
+tmp/
+uploads/
+*.tmp
+
+# IDE
+.vscode/settings.json
+.idea/
+*.iml
+
+# Coverage
+htmlcov/
+.coverage
+coverage.xml

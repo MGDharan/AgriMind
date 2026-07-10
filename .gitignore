@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+venv/
+.env
+*.db
+uploads/
+node_modules/
+dist/
+.DS_Store
+*.hdf5
+*.h5
