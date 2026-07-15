@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     @property
     def sync_database_url(self) -> str:
         url = self.database_url
+        if os.getenv("RENDER") == "true" and ("127.0.0.1" in url or "localhost" in url) and not url.startswith("sqlite"):
+            url = "sqlite:///agriculture.db"
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
         if url.startswith("postgresql://") and not url.startswith("postgresql+"):
