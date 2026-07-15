@@ -20,6 +20,7 @@ class User(Base):
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     language: Mapped[str] = mapped_column(String(10), default="en")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     farms: Mapped[list["Farm"]] = relationship(back_populates="owner")
@@ -86,3 +87,34 @@ class AgentLog(Base):
     action: Mapped[str] = mapped_column(String(255))
     latency_ms: Mapped[float] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Listing(Base):
+    __tablename__ = "listings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    seller_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    crop: Mapped[str] = mapped_column(String(100))
+    price_per_kg: Mapped[float] = mapped_column(Float)
+    quantity_kg: Mapped[float] = mapped_column(Float)
+    image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    orders: Mapped[list["Order"]] = relationship(back_populates="listing")
+
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    listing_id: Mapped[int] = mapped_column(ForeignKey("listings.id"))
+    buyer_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    buyer_name: Mapped[str] = mapped_column(String(255))
+    buyer_phone: Mapped[str] = mapped_column(String(100))
+    buyer_address: Mapped[str] = mapped_column(String(500))
+    quantity_kg: Mapped[float] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    listing: Mapped["Listing"] = relationship(back_populates="orders")
+    buyer: Mapped["User"] = relationship()
+

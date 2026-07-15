@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import {
   Sprout, Plus, MapPin, Ruler, X, Loader2, Leaf, LayoutGrid,
   ChevronRight, Calendar, Droplets, AlertTriangle, CheckCircle2,
@@ -25,15 +25,42 @@ function Field3D({ acres, crop, stage }: { acres: number; crop: string; stage: s
   const rows = Math.max(3, Math.min(8, Math.round(Math.sqrt(acres) * 2)));
   const cols = rows + 2;
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Mouse tilt variables
+  const rotateXVal = useMotionValue(0);
+  const rotateYVal = useMotionValue(0);
+
+  const springX = useSpring(rotateXVal, { stiffness: 120, damping: 18 });
+  const springY = useSpring(rotateYVal, { stiffness: 120, damping: 18 });
+
+  // Map coordinate offsets to rotations (default base tilt is rotateX: 52)
+  const tiltX = useTransform(springY, [-0.5, 0.5], [60, 44]);
+  const tiltY = useTransform(springX, [-0.5, 0.5], [-10, 10]);
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    rotateXVal.set(x);
+    rotateYVal.set(y);
+  };
+
+  const handleMouseLeave = () => {
+    rotateXVal.set(0);
+    rotateYVal.set(0);
+  };
+
   return (
     <div
-      className="w-full flex items-end justify-center overflow-hidden"
-      style={{ height: 160, perspective: 600 }}
+      ref={containerRef}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className="w-full flex items-end justify-center overflow-hidden cursor-crosshair"
+      style={{ height: 160, perspective: 800 }}
     >
       <motion.div
-        initial={{ opacity: 0, rotateX: 0 }}
-        animate={{ opacity: 1, rotateX: 55 }}
-        transition={{ duration: 1, type: 'spring' }}
         style={{
           transformStyle: 'preserve-3d',
           width: '100%',
@@ -42,17 +69,25 @@ function Field3D({ acres, crop, stage }: { acres: number; crop: string; stage: s
           gridTemplateColumns: `repeat(${cols}, 1fr)`,
           gap: 3,
           padding: 8,
+          rotateX: tiltX,
+          rotateY: tiltY,
         }}
       >
         {Array.from({ length: rows * cols }).map((_, i) => {
-          const delay = (i * 0.012);
+          const delay = (i * 0.008);
           const isEdge = i % cols === 0 || i % cols === cols - 1 || i < cols || i >= (rows - 1) * cols;
           return (
             <motion.div
               key={i}
-              initial={{ scaleY: 0 }}
-              animate={{ scaleY: 1 }}
-              transition={{ delay, duration: 0.3 }}
+              initial={{ scaleY: 0, opacity: 0 }}
+              animate={{ scaleY: 1, opacity: 1 }}
+              whileHover={{ 
+                scale: 1.25, 
+                z: 15,
+                backgroundColor: isEdge ? `${color}60` : `${color}ff`,
+                boxShadow: `0 8px 16px ${color}50` 
+              }}
+              transition={{ delay, duration: 0.35, ease: 'easeOut' }}
               style={{
                 height: 18,
                 borderRadius: 3,
@@ -69,6 +104,7 @@ function Field3D({ acres, crop, stage }: { acres: number; crop: string; stage: s
     </div>
   );
 }
+
 
 // ─────────────────────── progress bar ───────────────────────
 function ProgressBar({ value, color, label }: { value: number; color: string; label?: string }) {

@@ -107,7 +107,7 @@ async def _ingest_bg(
         if not text.strip():
             logger.warning("No text extracted from %s", doc_name)
             return
-        n = await ingest_text(doc_id, doc_name, text)
+        n = await ingest_text(doc_id, doc_name, text, user_id=user_id, stable_ids=True)
         logger.info("Ingested %d chunks for doc=%s user=%d", n, doc_name, user_id)
     except Exception as exc:
         logger.error("Ingest failed for %s: %s", doc_name, exc)
@@ -159,6 +159,40 @@ def _get_user_farm_context(user: User, db: Session) -> str:
     })
 
 
+async def _ingest_user_history(user: User, db: Session) -> None:
+    """Embed recent user prediction history and store it in Qdrant."""
+    pred_repo = PredictionRepository(db)
+    predictions = pred_repo.list_by_user(user.id, limit=20)
+    history_lines: list[str] = []
+
+    for p in predictions:
+        try:
+            data = json.loads(p.result_json)
+            result_summary = data.get("summary") or data.get("recommendation") or json.dumps(data)
+        except Exception:
+            result_summary = p.result_json or ""
+        if result_summary:
+            history_lines.append(
+                f"{p.created_at.strftime('%Y-%m-%d')} [{p.agent}] {p.input_summary}: {result_summary}"
+            )
+        else:
+            history_lines.append(
+                f"{p.created_at.strftime('%Y-%m-%d')} [{p.agent}] {p.input_summary}"
+            )
+
+    if not history_lines:
+        return
+
+    text = "\n\n".join(history_lines)
+    await ingest_text(
+        doc_id=f"user_history_{user.id}",
+        doc_name="User history",
+        text=text,
+        user_id=user.id,
+        stable_ids=True,
+    )
+
+
 def _list_docs(user: User, db: Session) -> list[dict]:
     """List uploaded knowledge documents for this user."""
     preds = (
@@ -196,10 +230,15 @@ async def chat(
     then streams Ollama LLM response token by token.
     """
     farm_context = _get_user_farm_context(user, db)
+    await _ingest_user_history(user, db)
 
     async def generate():
         try:
-            async for event in query_and_stream(request.question, farm_context=farm_context):
+            async for event in query_and_stream(
+                request.question,
+                farm_context=farm_context,
+                user_id=user.id,
+            ):
                 yield f"data: {json.dumps(event)}\n\n"
         except Exception as exc:
             logger.error("Chat stream error: %s", exc)

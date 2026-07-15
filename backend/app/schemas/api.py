@@ -23,6 +23,7 @@ class UserResponse(BaseModel):
     full_name: str
     location: Optional[str]
     language: str
+    is_admin: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -145,6 +146,54 @@ class MarketResponse(BaseModel):
     confidence: float
     recommendation: str
     risk: str
+
+
+class ListingCreate(BaseModel):
+    crop: str
+    price_per_kg: float
+    quantity_kg: float
+
+
+class ListingResponse(BaseModel):
+    id: int
+    seller_id: int
+    crop: str
+    price_per_kg: float
+    quantity_kg: float
+    image_path: Optional[str]
+    created_at: datetime
+    seller_name: Optional[str] = None
+    seller_email: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class PurchaseRequest(BaseModel):
+    listing_id: int
+    buyer_name: str
+    buyer_phone: str
+    buyer_address: str
+    quantity_kg: float = Field(gt=0)
+
+
+class OrderResponse(BaseModel):
+    id: int
+    listing_id: int
+    crop: str
+    price_per_kg: float
+    listing_quantity_kg: float
+    quantity_kg: float
+    buyer_name: str
+    buyer_phone: str
+    buyer_address: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PurchaseResponse(BaseModel):
+    sent: bool
+    order: OrderResponse
 
 
 class SchemeResponse(BaseModel):

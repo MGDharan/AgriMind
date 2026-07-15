@@ -19,6 +19,8 @@ import time
 from pathlib import Path
 from typing import AsyncGenerator, List, Optional
 
+from qdrant_client.models import Filter, FieldCondition, MatchValue  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 # ── Settings ──────────────────────────────────────────────────────────────────
@@ -152,7 +154,18 @@ async def _embed_batch(texts: list[str]) -> list[Optional[list[float]]]:
 import uuid as _uuid
 
 
-async def ingest_text(doc_id: str, doc_name: str, text: str) -> int:
+def _stable_point_id(doc_id: str, chunk_index: int) -> str:
+    key = f"{doc_id}:{chunk_index}"
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+
+async def ingest_text(
+    doc_id: str,
+    doc_name: str,
+    text: str,
+    user_id: int | None = None,
+    stable_ids: bool = False,
+) -> int:
     """
     Chunk + embed + store a text document in Qdrant.
     Returns number of chunks stored, or 0 on failure.
@@ -166,6 +179,9 @@ async def ingest_text(doc_id: str, doc_name: str, text: str) -> int:
     if not chunks:
         return 0
 
+    if stable_ids:
+        await delete_doc(doc_id)
+
     embeddings = await _embed_batch(chunks)
 
     from qdrant_client.models import PointStruct  # type: ignore
@@ -173,20 +189,24 @@ async def ingest_text(doc_id: str, doc_name: str, text: str) -> int:
     for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
         if emb is None:
             continue
+        point_id = _stable_point_id(doc_id, i) if stable_ids else str(_uuid.uuid4())
+        payload = {
+            "doc_id": doc_id,
+            "doc_name": doc_name,
+            "chunk_text": chunk,
+            "chunk_index": i,
+        }
+        if user_id is not None:
+            payload["user_id"] = user_id
         points.append(PointStruct(
-            id=str(_uuid.uuid4()),
+            id=point_id,
             vector=emb,
-            payload={
-                "doc_id": doc_id,
-                "doc_name": doc_name,
-                "chunk_text": chunk,
-                "chunk_index": i,
-            },
+            payload=payload,
         ))
 
     if points:
         await qdrant.upsert(collection_name=QDRANT_COLLECTION, points=points, wait=True)
-        logger.info("Ingested %d chunks for doc=%s", len(points), doc_name)
+        logger.info("Ingested %d chunks for doc=%s user_id=%s", len(points), doc_name, user_id)
 
     return len(points)
 
@@ -210,12 +230,21 @@ You have access to the farmer's own uploaded knowledge documents AND their farm 
 Answer ONLY based on the retrieved context and farm data. Be specific and actionable.
 If you cannot find relevant information, say so clearly and suggest consulting a local KVK officer.
 Always cite which source or document your answer comes from.
-Format responses clearly — use numbered steps for treatments and bullet points for lists."""
+Format responses clearly — use numbered steps for treatments and bullet points for lists.
+
+IMPORTANT — Scope rules:
+- If the user asks about WEATHER, temperature, rain forecast, or current conditions, do NOT guess.
+  Instead reply: "For real-time weather, please use the Weather tab in the sidebar — it shows current
+  conditions and a 7-day forecast for your farm location."
+- If the user asks anything clearly unrelated to agriculture (sports, movies, stocks, etc.),
+  politely decline and redirect them to agricultural topics.
+- Never fabricate data you do not have in the context."""
 
 
 async def query_and_stream(
     question: str,
     farm_context: Optional[str] = None,
+    user_id: Optional[int] = None,
     top_k: int = TOP_K,
 ) -> AsyncGenerator[dict, None]:
     """
@@ -238,11 +267,16 @@ async def query_and_stream(
         qdrant = await _get_qdrant()
         if qdrant is not None:
             try:
+                qdrant_filter = None
+                if user_id is not None:
+                    qdrant_filter = Filter(must=[FieldCondition(key="user_id", match=MatchValue(value=user_id))])
+
                 results = await qdrant.search(
                     collection_name=QDRANT_COLLECTION,
                     query_vector=query_emb,
                     limit=top_k,
                     with_payload=True,
+                    filter=qdrant_filter,
                 )
                 for i, r in enumerate(results):
                     p = r.payload
@@ -306,6 +340,14 @@ async def query_and_stream(
 
 # ── Synchronous keyword fallback (when Ollama is offline) ─────────────────────
 
+# Topics that are clearly outside the agricultural knowledge scope
+_NON_AGRI_KEYWORDS = [
+    "weather", "temperature", "rain", "rainfall", "humidity", "forecast",
+    "wind", "storm", "climate", "sunrise", "sunset", "cloud",
+    "score", "sport", "cricket", "football", "movie", "news",
+    "stock", "share", "market price",
+]
+
 _FALLBACK_KB = [
     {
         "topic": "late blight tomato blight",
@@ -347,27 +389,81 @@ _FALLBACK_KB = [
         "content": "Wheat rust (Puccinia): Apply propiconazole at first pustule. Plant resistant varieties. Destroy volunteer plants.",
         "source": "ICAR Wheat Research Directorate",
     },
+    {
+        "topic": "nitrogen deficiency yellowing leaves crop",
+        "content": "Nitrogen deficiency shows as yellowing of older/lower leaves first. Apply urea (46-0-0) at 25 kg/acre. Confirmed with soil test.",
+        "source": "ICAR Nutrient Management Guide",
+    },
+    {
+        "topic": "wheat irrigation water requirement",
+        "content": "Wheat requires 4-6 critical irrigations: crown root initiation, tillering, jointing, flowering, milk stage, and dough stage. Total 35-40 cm water.",
+        "source": "ICAR Wheat Research Directorate",
+    },
 ]
 
 
 def _keyword_fallback(question: str) -> str:
+    import difflib
     q = question.lower()
+
+    # ── Check if question is clearly outside agricultural scope ───────────────
+    non_agri_match = [kw for kw in _NON_AGRI_KEYWORDS if kw in q]
+    if non_agri_match:
+        topic = non_agri_match[0]
+        if topic in ("weather", "temperature", "rain", "rainfall", "humidity",
+                     "forecast", "wind", "storm", "climate", "sunrise", "sunset", "cloud"):
+            return (
+                "I'm AgriMind, an agricultural AI assistant. I'm not able to provide real-time "
+                "weather data here.\n\n"
+                "To check your local weather, please use the **Weather** tab in the sidebar — "
+                "it shows current conditions and a 7-day forecast for your farm location."
+            )
+        return (
+            f"I'm AgriMind, specialized in agricultural topics. I can't answer questions about "
+            f"{topic} here. Try asking about crop diseases, irrigation, soil health, "
+            f"fertilizers, or pests instead."
+        )
+
+    # ── Agricultural keyword matching ─────────────────────────────────────────
     scores: list[tuple[float, dict]] = []
     for doc in _FALLBACK_KB:
-        score = sum(1.0 for w in q.split() if len(w) > 3 and w in doc["topic"])
-        if score > 0:
+        # Fixed: parentheses added to avoid operator precedence bug
+        # (previously `len(w) > 3 and w in topic or w in content` was
+        #  parsed as `(len(w) > 3 and w in topic) or (w in content)`,
+        #  causing short words like 'is', 'in', 'my' to always match)
+        token_score = sum(
+            1.0 for w in q.split()
+            if len(w) > 3 and (w in doc["topic"] or w in doc["content"].lower())
+        )
+        # fuzzy similarity against topic keywords only (not the full content)
+        sim = difflib.SequenceMatcher(a=q, b=doc["topic"]).ratio()
+        score = token_score * 1.5 + sim * 2.0
+        if score > 0.5:
             scores.append((score, doc))
+
     scores.sort(key=lambda x: x[0], reverse=True)
+
     if not scores:
         return (
-            "I don't have enough information in my knowledge base for this question. "
-            "Please consult your local Krishi Vigyan Kendra (KVK) or agricultural extension officer, "
-            "or upload relevant agricultural documents in the Knowledge Base page."
+            "I don't have enough information in my knowledge base to answer that question.\n\n"
+            "You can:\n"
+            "1. Upload relevant agricultural documents using the Upload button on the right."
+            "\n2. Ask about specific crop diseases, irrigation, fertilizers, or pests."
+            "\n3. Consult your local Krishi Vigyan Kendra (KVK) or agricultural extension officer."
         )
+
+    # Build an aggregated short answer from the top 2 matches
     top = scores[0][1]
     answer = top["content"]
-    if len(scores) > 1:
+    if len(scores) > 1 and scores[1][0] > 0.6:
         answer += "\n\n" + scores[1][1]["content"]
+
+    # If low confidence, add a disclaimer
+    if scores[0][0] < 1.5:
+        suggested = [d[1]["topic"].split()[0] for d in scores[:3]]
+        answer += "\n\nSuggested related topics: " + ", ".join(suggested)
+        answer += ". Upload documents for more precise, context-specific answers."
+
     return answer
 
 

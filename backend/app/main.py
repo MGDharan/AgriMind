@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.api.admin import router as admin_router
 from app.api.knowledge import router as knowledge_router
 from app.api.predictions import router as predictions_router
 from app.api.routes import router as core_router
@@ -165,6 +166,7 @@ def create_app() -> FastAPI:
     app.include_router(core_router)
     app.include_router(predictions_router)
     app.include_router(knowledge_router)
+    app.include_router(admin_router)
 
     if os.path.isdir(settings.upload_dir):
         app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")

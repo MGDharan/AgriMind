@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
 from app.models.entities import Farm, Field, Prediction, User
+from app.models.entities import Listing, Order
 
 
 class UserRepository:
@@ -94,3 +95,66 @@ class PredictionRepository:
 
     def count_by_user(self, user_id: int) -> int:
         return self.db.query(Prediction).filter(Prediction.user_id == user_id).count()
+
+
+class ListingRepository:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def create(self, seller_id: int, crop: str, price_per_kg: float, quantity_kg: float, image_path: str | None) -> Listing:
+        l = Listing(
+            seller_id=seller_id,
+            crop=crop,
+            price_per_kg=price_per_kg,
+            quantity_kg=quantity_kg,
+            image_path=image_path,
+        )
+        self.db.add(l)
+        self.db.commit()
+        self.db.refresh(l)
+        return l
+
+    def list_by_crop(self, crop: str | None = None) -> list[Listing]:
+        q = self.db.query(Listing)
+        if crop:
+            q = q.filter(Listing.crop == crop)
+        return q.order_by(Listing.created_at.desc()).all()
+
+    def get_by_id(self, listing_id: int) -> Listing | None:
+        return self.db.query(Listing).filter(Listing.id == listing_id).first()
+
+
+class OrderRepository:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def create(
+        self,
+        listing_id: int,
+        buyer_id: int,
+        buyer_name: str,
+        buyer_phone: str,
+        buyer_address: str,
+        quantity_kg: float,
+    ) -> Order:
+        order = Order(
+            listing_id=listing_id,
+            buyer_id=buyer_id,
+            buyer_name=buyer_name,
+            buyer_phone=buyer_phone,
+            buyer_address=buyer_address,
+            quantity_kg=quantity_kg,
+        )
+        self.db.add(order)
+        self.db.commit()
+        self.db.refresh(order)
+        return order
+
+    def list_by_seller(self, seller_id: int) -> list[Order]:
+        return (
+            self.db.query(Order)
+            .join(Listing, Order.listing_id == Listing.id)
+            .filter(Listing.seller_id == seller_id)
+            .order_by(Order.created_at.desc())
+            .all()
+        )

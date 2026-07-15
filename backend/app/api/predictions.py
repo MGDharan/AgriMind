@@ -12,7 +12,7 @@ from app.agents.weather_agent import WeatherAgent
 from app.api.deps import get_current_user, get_optional_user, save_image, validate_image
 from app.core.database import get_db
 from app.models.entities import User
-from app.repositories.base import PredictionRepository
+from app.repositories.base import PredictionRepository, ListingRepository, UserRepository, OrderRepository
 from app.schemas.api import (
     CoordinatorRequest,
     CoordinatorResponse,
@@ -22,6 +22,10 @@ from app.schemas.api import (
     SoilAnalysisRequest,
     VisionResponse,
     WeatherResponse,
+    ListingResponse,
+    PurchaseRequest,
+    OrderResponse,
+    PurchaseResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -122,6 +126,120 @@ async def get_market(crop: str = "tomato", user: User | None = Depends(get_optio
     agent = MarketAgent()
     result = agent.analyze(crop)
     return MarketResponse(**{k: result[k] for k in MarketResponse.model_fields})
+
+
+@router.post("/market/listings", response_model=ListingResponse)
+async def create_listing(
+    crop: str = Form(...),
+    price_per_kg: float = Form(...),
+    quantity_kg: float = Form(...),
+    file: UploadFile | None = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    image_path = None
+    if file is not None:
+        content = await validate_image(file)
+        image_path = save_image(content, user.id)
+
+    listing = ListingRepository(db).create(user.id, crop, price_per_kg, quantity_kg, image_path)
+    # include seller info
+    resp = ListingResponse.model_validate(listing)
+    resp.seller_name = user.full_name
+    resp.seller_email = user.email
+    return resp
+
+
+@router.get("/market/listings", response_model=list[ListingResponse])
+async def list_listings(crop: str | None = None, db: Session = Depends(get_db)):
+    listings = ListingRepository(db).list_by_crop(crop)
+    results = []
+    for l in listings:
+        seller = UserRepository(db).get_by_id(l.seller_id)
+        item = ListingResponse.model_validate(l)
+        item.seller_name = seller.full_name if seller else None
+        item.seller_email = seller.email if seller else None
+        results.append(item)
+    return results
+
+
+@router.post("/market/purchase", response_model=PurchaseResponse)
+async def purchase_listing(request: PurchaseRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    listing = ListingRepository(db).get_by_id(request.listing_id)
+    if not listing:
+        from fastapi import HTTPException
+
+        raise HTTPException(404, "Listing not found")
+
+    seller = UserRepository(db).get_by_id(listing.seller_id)
+    if not seller:
+        from fastapi import HTTPException
+
+        raise HTTPException(404, "Seller not found")
+
+    # Persist the order
+    order = OrderRepository(db).create(
+        listing_id=listing.id,
+        buyer_id=user.id,
+        buyer_name=request.buyer_name,
+        buyer_phone=request.buyer_phone,
+        buyer_address=request.buyer_address,
+        quantity_kg=request.quantity_kg,
+    )
+
+    # Notify seller by email
+    from app.services.email_service import send_purchase_notification
+
+    sent = send_purchase_notification(
+        to_email=seller.email,
+        to_name=seller.full_name,
+        buyer_name=request.buyer_name,
+        buyer_phone=request.buyer_phone,
+        buyer_address=request.buyer_address,
+        crop=listing.crop,
+        quantity_kg=request.quantity_kg,
+        listing_id=listing.id,
+    )
+
+    order_resp = OrderResponse(
+        id=order.id,
+        listing_id=listing.id,
+        crop=listing.crop,
+        price_per_kg=listing.price_per_kg,
+        listing_quantity_kg=listing.quantity_kg,
+        quantity_kg=order.quantity_kg,
+        buyer_name=order.buyer_name,
+        buyer_phone=order.buyer_phone,
+        buyer_address=order.buyer_address,
+        created_at=order.created_at,
+    )
+
+    return PurchaseResponse(sent=sent, order=order_resp)
+
+
+@router.get("/market/orders", response_model=list[OrderResponse])
+async def list_seller_orders(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    orders = OrderRepository(db).list_by_seller(user.id)
+    results = []
+    for order in orders:
+        listing = ListingRepository(db).get_by_id(order.listing_id)
+        if not listing:
+            continue
+        results.append(
+            OrderResponse(
+                id=order.id,
+                listing_id=listing.id,
+                crop=listing.crop,
+                price_per_kg=listing.price_per_kg,
+                listing_quantity_kg=listing.quantity_kg,
+                quantity_kg=order.quantity_kg,
+                buyer_name=order.buyer_name,
+                buyer_phone=order.buyer_phone,
+                buyer_address=order.buyer_address,
+                created_at=order.created_at,
+            )
+        )
+    return results
 
 
 @router.post("/rag", response_model=RAGResponse)

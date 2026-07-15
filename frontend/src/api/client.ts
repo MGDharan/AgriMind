@@ -6,6 +6,70 @@ export interface User {
   full_name: string;
   location: string | null;
   language: string;
+  is_admin?: boolean;
+  created_at: string;
+}
+
+export interface AdminStatsResponse {
+  total_farmers: int;
+  total_farms: int;
+  total_fields: int;
+  total_scans: int;
+  total_listings: int;
+}
+
+export interface AdminFarmerResponse {
+  id: number;
+  email: string;
+  full_name: string;
+  location: string | null;
+  is_active: boolean;
+  created_at: string;
+  farms_count: number;
+  fields_count: number;
+}
+
+export interface AdminFarmerDetailResponse extends AdminFarmerResponse {
+  recent_scans: number;
+}
+
+export interface AdminActivityResponse {
+  id: number;
+  user_id: number;
+  user_email: string;
+  agent: string;
+  input_summary: string;
+  created_at: string;
+}
+
+export interface AdminListingResponse {
+  id: number;
+  crop: string;
+  price_per_kg: number;
+  quantity_kg: number;
+  seller_name: string;
+  seller_email: string;
+  created_at: string;
+}
+
+export interface AdminOrderResponse {
+  id: number;
+  crop: string;
+  price_per_kg: number;
+  quantity_kg: number;
+  buyer_name: string;
+  buyer_email: string;
+  seller_name: string;
+  seller_email: string;
+  created_at: string;
+}
+
+export interface AdminAgentLogResponse {
+  id: number;
+  coordinator_session: string;
+  agent_name: string;
+  action: string;
+  latency_ms: number;
   created_at: string;
 }
 
@@ -73,6 +137,31 @@ export interface FarmResponse {
   latitude: number | null;
   longitude: number | null;
   area_acres: number | null;
+  created_at: string;
+}
+
+export interface ListingResponse {
+  id: number;
+  seller_id: number;
+  crop: string;
+  price_per_kg: number;
+  quantity_kg: number;
+  image_path?: string | null;
+  created_at: string;
+  seller_name?: string | null;
+  seller_email?: string | null;
+}
+
+export interface OrderResponse {
+  id: number;
+  listing_id: number;
+  crop: string;
+  price_per_kg: number;
+  listing_quantity_kg: number;
+  quantity_kg: number;
+  buyer_name: string;
+  buyer_phone: string;
+  buyer_address: string;
   created_at: string;
 }
 
@@ -242,6 +331,12 @@ export const api = {
     request<WeatherData>(`/api/weather?latitude=${lat}&longitude=${lng}&crop=${crop}`),
 
   market: (crop: string) => request<MarketData>(`/api/market?crop=${crop}`),
+  // Marketplace endpoints
+  createListing: (form: FormData) => request('/api/market/listings', { method: 'POST', body: form }),
+  listListings: (crop?: string) => request<ListingResponse[]>(`/api/market/listings${crop ? `?crop=${crop}` : ''}`),
+  purchase: (data: { listing_id: number; buyer_name: string; buyer_phone: string; buyer_address: string; quantity_kg: number }) =>
+    request<OrderResponse>('/api/market/purchase', { method: 'POST', body: JSON.stringify(data) }),
+  listSellerOrders: () => request<OrderResponse[]>('/api/market/orders'),
 
   rag: (question: string) =>
     request<{ answer: string; sources: string[]; confidence: number }>('/api/rag', {
@@ -340,5 +435,21 @@ export const api = {
 
     deleteDoc: (docId: string) =>
       request<{ message: string }>(`/api/knowledge/documents/${docId}`, { method: 'DELETE' }),
+  },
+
+  admin: {
+    login: (data: { email: string; password: string }) =>
+      request<{ access_token: string; user: User }>('/api/admin/login', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    stats: () => request<AdminStatsResponse>('/api/admin/stats'),
+    farmers: () => request<AdminFarmerResponse[]>('/api/admin/farmers'),
+    farmerDetail: (id: number) => request<AdminFarmerDetailResponse>(`/api/admin/farmers/${id}`),
+    toggleFarmer: (id: number) => request<{ message: string; is_active: boolean }>(`/api/admin/farmers/${id}/toggle`, { method: 'PUT' }),
+    activity: () => request<AdminActivityResponse[]>('/api/admin/activity'),
+    listings: () => request<AdminListingResponse[]>('/api/admin/listings'),
+    orders: () => request<AdminOrderResponse[]>('/api/admin/orders'),
+    logs: () => request<AdminAgentLogResponse[]>('/api/admin/logs'),
   },
 };

@@ -11,9 +11,9 @@ export default defineConfig({
     port: 5173,
     proxy: {
       // Dev proxy — Nginx handles this in production
-      '/api': 'http://localhost:8001',
-      '/uploads': 'http://localhost:8001',
-      '/health': 'http://localhost:8001',
+      '/api': 'http://localhost:8000',
+      '/uploads': 'http://localhost:8000',
+      '/health': 'http://localhost:8000',
     },
   },
 })

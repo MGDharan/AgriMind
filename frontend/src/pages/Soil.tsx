@@ -138,12 +138,18 @@ function TrendIcon({ trend }: { trend: string }) {
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="glass-panel p-3 text-xs space-y-1">
-      <p className="text-gray-400 mb-1">{label}</p>
+    <div className="glass-panel p-3 border border-earth-700/80 shadow-glass-lg space-y-1.5 min-w-[120px]">
+      <p className="text-gray-400 font-semibold text-[10px] uppercase tracking-wider mb-1.5">{label}</p>
       {payload.map((p: any) => (
-        <p key={p.name} style={{ color: p.color }}>
-          {p.name}: <span className="font-mono font-bold">{Number(p.value).toFixed(3)}</span>
-        </p>
+        <div key={p.name} className="flex items-center justify-between gap-4 text-xs">
+          <span className="flex items-center gap-1.5 text-gray-300">
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: p.color }} />
+            {p.name.replace(/ \(.*\)/, '')}
+          </span>
+          <span className="font-mono font-bold" style={{ color: p.color }}>
+            {Number(p.value).toFixed(3)}
+          </span>
+        </div>
       ))}
     </div>
   );
@@ -219,7 +225,7 @@ function NDVISection() {
             onClick={() => inputRef.current?.click()}
             onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
             onDragOver={(e) => e.preventDefault()}
-            className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all
+            className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-300 group
               ${file ? 'border-moss-600/40' : 'border-earth-600 hover:border-moss-600/30'}`}
           >
             <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls,.zip" className="hidden"
@@ -237,7 +243,7 @@ function NDVISection() {
               </div>
             ) : (
               <div>
-                <Upload className="w-8 h-8 text-earth-600 mx-auto mb-2" />
+                <Upload className="w-8 h-8 text-earth-600 mx-auto mb-2 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 ease-spring" />
                 <p className="text-sm text-gray-400">Drop data.zip or CSV/Excel here</p>
                 <p className="text-xs text-gray-600 mt-1">ZIP (Warwan) · CSV · XLSX</p>
               </div>
@@ -317,9 +323,10 @@ function NDVISection() {
               </h4>
               <div className="space-y-2">
                 {result.suggestions.map((s, i) => (
-                  <motion.div key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.08 }}
-                    className="flex items-start gap-2 p-3 rounded-xl bg-earth-800/40 border border-earth-700/50">
+                  <motion.div key={i} initial={{ opacity: 0, x: -16, scale: 0.98 }} animate={{ opacity: 1, x: 0, scale: 1 }}
+                    transition={{ delay: i * 0.08, type: 'spring', stiffness: 100 }}
+                    whileHover={{ scale: 1.01, borderColor: 'rgba(124, 184, 122, 0.25)' }}
+                    className="flex items-start gap-2 p-3 rounded-xl bg-earth-800/40 border border-earth-700/50 transition-all duration-300">
                     <span className="w-5 h-5 rounded-full bg-moss-600/20 border border-moss-600/30
                       text-moss-400 text-xs flex items-center justify-center shrink-0 mt-0.5">
                       {i + 1}
@@ -430,69 +437,4 @@ function NDVISection() {
   );
 }
 
-// ── Irrigation Page (unchanged) ──────────────────────────────────────────────
-export function IrrigationPage() {
-  const [crop, setCrop] = useState('tomato');
-  const [lat, setLat] = useState(13.0827);
-  const [lng, setLng] = useState(80.2707);
-  const [result, setResult] = useState<Record<string, unknown> | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [gpsError, setGpsError] = useState('');
-
-  const getGPS = () => {
-    setGpsError('');
-    navigator.geolocation?.getCurrentPosition(
-      (pos) => { setLat(pos.coords.latitude); setLng(pos.coords.longitude); },
-      () => setGpsError('Could not get GPS — using default location'),
-    );
-  };
-
-  const calculate = async () => {
-    setLoading(true);
-    try {
-      const res = await api.predict({ crop, latitude: lat, longitude: lng });
-      const irrigation = res.insights.find((i) => i.agent === 'irrigation');
-      setResult(irrigation?.details ?? null);
-    } finally { setLoading(false); }
-  };
-
-  return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="font-display text-3xl font-bold">Irrigation Planner</h2>
-        <p className="text-gray-500 mt-1">Smart water scheduling based on crop and weather</p>
-      </div>
-      <GlassCard className="p-8 max-w-2xl space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block">Crop</label>
-            <select value={crop} onChange={(e) => setCrop(e.target.value)} className="input-field">
-              {['tomato', 'rice', 'wheat', 'potato', 'corn'].map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block">Location</label>
-            <button onClick={getGPS} className="btn-secondary w-full flex items-center justify-center gap-2 text-sm">
-              <MapPin className="w-4 h-4" />
-              {lat === 13.0827 && lng === 80.2707 ? 'Use My GPS' : `${lat.toFixed(2)}°, ${lng.toFixed(2)}°`}
-            </button>
-          </div>
-        </div>
-        {gpsError && <p className="text-wheat-400 text-xs">{gpsError}</p>}
-        <button onClick={calculate} disabled={loading} className="btn-primary w-full py-4 flex items-center justify-center gap-2">
-          {loading ? <><Loader2 className="w-5 h-5 animate-spin" /> Calculating...</> : 'Calculate Water Needs'}
-        </button>
-        {result && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 p-6 rounded-xl bg-earth-800/30 border border-earth-600">
-            <p className="text-3xl font-display font-bold text-moss-400">{result.water_requirement_mm as number} mm</p>
-            <p className="text-sm text-gray-500 mt-1">Water requirement for {result.crop as string}</p>
-            <p className="text-sm text-gray-300 mt-4 leading-relaxed">{result.recommendation as string}</p>
-            <div className="mt-3"><RiskBadge risk={result.risk as string} /></div>
-          </motion.div>
-        )}
-      </GlassCard>
-    </div>
-  );
-}
+// Irrigation planner has been removed. The Soil page remains.

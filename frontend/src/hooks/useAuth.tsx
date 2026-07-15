@@ -5,6 +5,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithToken: (token: string) => Promise<void>;
   register: (data: { email: string; full_name: string; password: string; location?: string }) => Promise<void>;
   logout: () => void;
 }
@@ -30,6 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.user);
   };
 
+  const loginWithToken = async (token: string) => {
+    localStorage.setItem('agrimind_token', token);
+    const user = await api.me();
+    setUser(user);
+  };
+
   const register = async (data: { email: string; full_name: string; password: string; location?: string }) => {
     const res = await api.register(data);
     localStorage.setItem('agrimind_token', res.access_token);
@@ -42,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithToken, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

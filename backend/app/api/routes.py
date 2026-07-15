@@ -1,11 +1,17 @@
-from fastapi import APIRouter, Depends
+import uuid
+from urllib.parse import urlencode
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 
 from app.api.deps import get_current_user
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.entities import User
-from app.repositories.base import FarmRepository, FieldRepository, PredictionRepository
+from app.repositories.base import FarmRepository, FieldRepository, PredictionRepository, UserRepository
 from app.schemas.api import (
     DashboardStats,
     FarmCreate,
@@ -44,6 +50,85 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_access_token(str(user.id))
     return TokenResponse(access_token=token, user=UserResponse.model_validate(user))
+
+
+@router.get("/auth/google/login")
+def google_login() -> RedirectResponse:
+    settings = get_settings()
+    params = {
+        "client_id": settings.google_client_id,
+        "redirect_uri": settings.google_oauth_redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "prompt": "select_account",
+    }
+    return RedirectResponse(f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}")
+
+
+@router.get("/auth/google/callback")
+async def google_callback(code: Optional[str] = None, error: Optional[str] = None, db: Session = Depends(get_db)) -> RedirectResponse:
+    if error:
+        raise HTTPException(status_code=400, detail=f"Google OAuth error: {error}")
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing authorization code")
+
+    settings = get_settings()
+    async with httpx.AsyncClient() as client:
+        token_resp = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": settings.google_client_id,
+                "client_secret": settings.google_client_secret,
+                "redirect_uri": settings.google_oauth_redirect_uri,
+                "grant_type": "authorization_code",
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+
+    if token_resp.status_code != 200:
+        raise HTTPException(status_code=400, detail="Google token exchange failed")
+
+    data = token_resp.json()
+    id_token = data.get("id_token")
+    if not id_token:
+        raise HTTPException(status_code=400, detail="Google did not return an ID token")
+
+    try:
+        from google.auth.transport import requests as google_requests
+        from google.oauth2 import id_token as google_id_token
+
+        id_info = google_id_token.verify_oauth2_token(
+            id_token,
+            google_requests.Request(),
+            settings.google_client_id,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to verify Google token: {exc}")
+
+    if not id_info.get("email_verified"):
+        raise HTTPException(status_code=400, detail="Google email not verified")
+
+    email = id_info.get("email")
+    full_name = id_info.get("name") or email.split("@")[0]
+    if not email:
+        raise HTTPException(status_code=400, detail="Google account email missing")
+
+    repo = UserRepository(db)
+    user = repo.get_by_email(email)
+    if not user:
+        user = repo.create(
+            email=email,
+            full_name=full_name,
+            password=uuid.uuid4().hex,
+            location="",
+            language="en",
+        )
+
+    token = create_access_token(str(user.id))
+    redirect_url = f"{settings.frontend_url}/login?token={token}"
+    return RedirectResponse(redirect_url)
 
 
 @router.get("/auth/me", response_model=UserResponse)

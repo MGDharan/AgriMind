@@ -210,3 +210,53 @@ def send_pesticide_alert(
     except Exception as exc:
         logger.error("Pesticide email failed: %s", exc)
         return False
+
+
+def send_purchase_notification(
+    to_email: str,
+    to_name: str,
+    buyer_name: str,
+    buyer_phone: str,
+    buyer_address: str,
+    crop: str,
+    quantity_kg: float,
+    listing_id: int,
+) -> bool:
+    """Notify a seller that a buyer is interested in their listing."""
+    settings = get_settings()
+    if not settings.smtp_host or not settings.smtp_user:
+        logger.info("SMTP not configured — skipping purchase email to %s", to_email)
+        return False
+
+    subject = f"AgriMind: Buyer interest for your {crop} listing"
+    plain_body = (
+        f"Hi {to_name},\n\n"
+        f"A buyer has expressed interest in your listing #{listing_id} for {crop}.\n\n"
+        f"Buyer name: {buyer_name}\n"
+        f"Phone: {buyer_phone}\n"
+        f"Address: {buyer_address}\n"
+        f"Requested quantity: {quantity_kg} kg\n\n"
+        "Please contact the buyer to arrange the sale.\n\n"
+        "— AgriMind"
+    )
+
+    try:
+        msg = MIMEMultipart()
+        msg["Subject"] = subject
+        msg["From"] = f"AgriMind <{settings.smtp_user}>"
+        msg["To"] = to_email
+        msg.attach(MIMEText(plain_body, "plain"))
+
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+            server.ehlo()
+            if settings.smtp_port == 587:
+                server.starttls()
+                server.ehlo()
+            server.login(settings.smtp_user, settings.smtp_password)
+            server.sendmail(settings.smtp_user, to_email, msg.as_string())
+
+        logger.info("Purchase notification sent to %s for listing %s", to_email, listing_id)
+        return True
+    except Exception as exc:
+        logger.error("Failed to send purchase email to %s: %s", to_email, exc)
+        return False
