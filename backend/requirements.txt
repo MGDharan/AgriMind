@@ -28,3 +28,4 @@ pandas==2.2.3
 h5py==3.11.0
 openpyxl==3.1.5
 psycopg2-binary==2.9.10
+google-auth==2.38.0
