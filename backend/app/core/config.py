@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     app_name: str = "AgriMind AI Platform"
     app_version: str = "1.0.0"
-    database_url: str = "mysql+pymysql://root:root@127.0.0.1:3306/agriculture"
+    database_url: str = "sqlite:///agriculture.db"
     redis_url: str = "redis://localhost:6379/0"
     jwt_secret: str = "dev-secret-change-in-production"
     jwt_algorithm: str = "HS256"
