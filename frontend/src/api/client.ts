@@ -1,4 +1,4 @@
-const API_BASE =
+export const API_BASE =
   import.meta.env.VITE_API_URL || "http://localhost:8000";
 export interface User {
   id: number;
@@ -394,7 +394,7 @@ export const api = {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch('/api/knowledge/chat', {
+      const res = await fetch(`${API_BASE}/api/knowledge/chat`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ question }),

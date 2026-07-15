@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion';
 import { Sprout, Mail, Lock, User, MapPin, Eye, EyeOff, ArrowRight, Leaf, Zap, Shield } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { API_BASE } from '../api/client';
 
 // ── Typewriter cycling headlines ───────────────────────────────────────────────
 const HEADLINES = ['Grow Smarter.', 'Farm Intelligently.', 'Harvest More.', 'Think Ahead.'];
@@ -486,7 +487,7 @@ export function LoginPage() {
               type="button"
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => { window.location.href = '/api/auth/google/login'; }}
+              onClick={() => { window.location.href = `${API_BASE}/api/auth/google/login`; }}
               className="btn-secondary w-full py-3.5 flex items-center justify-center gap-3 text-sm"
             >
               <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
