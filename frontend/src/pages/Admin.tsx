@@ -17,7 +17,7 @@ export function AdminLoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { user, login } = useAuth();
+  const { user, loginWithUserAndToken } = useAuth();
   const navigate = useNavigate();
 
   // If already logged in and is_admin, redirect to /admin
@@ -33,7 +33,7 @@ export function AdminLoginPage() {
     setLoading(true);
     try {
       const res = await api.admin.login({ email, password });
-      login(res.user, res.access_token);
+      loginWithUserAndToken(res.user, res.access_token);
       navigate('/admin');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');

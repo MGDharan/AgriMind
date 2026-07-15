@@ -1,5 +1,5 @@
 const API_BASE =
-import.meta.env.production.VITE_API_URL || "http://localhost:8000";
+  import.meta.env.VITE_API_URL || "http://localhost:8000";
 export interface User {
   id: number;
   email: string;
