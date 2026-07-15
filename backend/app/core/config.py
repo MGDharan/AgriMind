@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     minio_access_key: str = "minioadmin"
     minio_secret_key: str = "minioadmin"
     minio_bucket: str = "agriculture"
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    cors_origins: str = "http://localhost:5173,http://localhost:3000,https://agrimind-do4.pages.dev"
     upload_max_mb: int = 10
     upload_dir: str = "uploads"
     # Qdrant vector store
