@@ -2,7 +2,7 @@ import uuid
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -53,11 +53,16 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
 
 
 @router.get("/auth/google/login")
-def google_login() -> RedirectResponse:
+def google_login(request: Request) -> RedirectResponse:
     settings = get_settings()
+    import os
+    redirect_uri = settings.google_oauth_redirect_uri
+    if os.getenv("RENDER") == "true":
+        host = request.headers.get("host", "agrimind-pxkv.onrender.com")
+        redirect_uri = f"https://{host}/api/auth/google/callback"
     params = {
         "client_id": settings.google_client_id,
-        "redirect_uri": settings.google_oauth_redirect_uri,
+        "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": "openid email profile",
         "access_type": "offline",
@@ -67,13 +72,19 @@ def google_login() -> RedirectResponse:
 
 
 @router.get("/auth/google/callback")
-async def google_callback(code: Optional[str] = None, error: Optional[str] = None, db: Session = Depends(get_db)) -> RedirectResponse:
+async def google_callback(request: Request, code: Optional[str] = None, error: Optional[str] = None, db: Session = Depends(get_db)) -> RedirectResponse:
     if error:
         raise HTTPException(status_code=400, detail=f"Google OAuth error: {error}")
     if not code:
         raise HTTPException(status_code=400, detail="Missing authorization code")
 
     settings = get_settings()
+    import os
+    redirect_uri = settings.google_oauth_redirect_uri
+    if os.getenv("RENDER") == "true":
+        host = request.headers.get("host", "agrimind-pxkv.onrender.com")
+        redirect_uri = f"https://{host}/api/auth/google/callback"
+
     async with httpx.AsyncClient() as client:
         token_resp = await client.post(
             "https://oauth2.googleapis.com/token",
@@ -81,7 +92,7 @@ async def google_callback(code: Optional[str] = None, error: Optional[str] = Non
                 "code": code,
                 "client_id": settings.google_client_id,
                 "client_secret": settings.google_client_secret,
-                "redirect_uri": settings.google_oauth_redirect_uri,
+                "redirect_uri": redirect_uri,
                 "grant_type": "authorization_code",
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -127,7 +138,7 @@ async def google_callback(code: Optional[str] = None, error: Optional[str] = Non
         )
 
     token = create_access_token(str(user.id))
-    redirect_url = f"{settings.frontend_url}/login?token={token}"
+    redirect_url = f"{settings.sync_frontend_url}/login?token={token}"
     return RedirectResponse(redirect_url)
 
 

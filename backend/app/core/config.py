@@ -60,6 +60,14 @@ class Settings(BaseSettings):
             url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
         return url
 
+    @property
+    def sync_frontend_url(self) -> str:
+        url = self.frontend_url
+        if os.getenv("RENDER") == "true" and ("localhost" in url or "127.0.0.1" in url):
+            url = "https://agrimind-do4.pages.dev"
+        return url
+
+
 
 @lru_cache
 def get_settings() -> Settings:
