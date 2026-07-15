@@ -99,7 +99,10 @@ async def google_callback(request: Request, code: Optional[str] = None, error: O
         )
 
     if token_resp.status_code != 200:
-        raise HTTPException(status_code=400, detail="Google token exchange failed")
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error("Google token exchange failed: %s %s", token_resp.status_code, token_resp.text)
+        raise HTTPException(status_code=400, detail=f"Google token exchange failed: {token_resp.text}")
 
     data = token_resp.json()
     id_token = data.get("id_token")
