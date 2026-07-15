@@ -1,5 +1,5 @@
-const API_BASE = '';
-
+const API_BASE =
+import.meta.env.production.VITE_API_URL || "http://localhost:8000";
 export interface User {
   id: number;
   email: string;
@@ -11,11 +11,11 @@ export interface User {
 }
 
 export interface AdminStatsResponse {
-  total_farmers: int;
-  total_farms: int;
-  total_fields: int;
-  total_scans: int;
-  total_listings: int;
+  total_farmers: number;
+  total_farms: number;
+  total_fields: number;
+  total_scans: number;
+  total_listings: number;
 }
 
 export interface AdminFarmerResponse {
