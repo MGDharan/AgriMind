@@ -11,11 +11,11 @@ class Settings(BaseSettings):
     app_name: str = "AgriMind AI Platform"
     app_version: str = "1.0.0"
     database_url: str = "sqlite:///agriculture.db"
-    mysql_host: str = os.getenv("MYSQL_HOST", "")
+    mysql_host: str = os.getenv("MYSQL_HOST", "metro.proxy.rlwy.net")
     mysql_user: str = os.getenv("MYSQL_USER", "root")
-    mysql_password: str = os.getenv("MYSQL_PASSWORD", "")
-    mysql_db: str = os.getenv("MYSQL_DB", "agriculture")
-    mysql_port: str = os.getenv("MYSQL_PORT", "3306")
+    mysql_password: str = os.getenv("MYSQL_PASSWORD", "root")
+    mysql_db: str = os.getenv("MYSQL_DB", "railway")
+    mysql_port: str = os.getenv("MYSQL_PORT", "28224")
     redis_url: str = "redis://localhost:6379/0"
     jwt_secret: str = "dev-secret-change-in-production"
     jwt_algorithm: str = "HS256"
