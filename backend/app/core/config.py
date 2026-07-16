@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     app_name: str = "AgriMind AI Platform"
     app_version: str = "1.0.0"
     database_url: str = "sqlite:///agriculture.db"
+    mysql_host: str = os.getenv("MYSQL_HOST", "")
+    mysql_user: str = os.getenv("MYSQL_USER", "root")
+    mysql_password: str = os.getenv("MYSQL_PASSWORD", "")
+    mysql_db: str = os.getenv("MYSQL_DB", "agriculture")
+    mysql_port: str = os.getenv("MYSQL_PORT", "3306")
     redis_url: str = "redis://localhost:6379/0"
     jwt_secret: str = "dev-secret-change-in-production"
     jwt_algorithm: str = "HS256"
@@ -51,7 +56,13 @@ class Settings(BaseSettings):
 
     @property
     def sync_database_url(self) -> str:
-        url = self.database_url
+        if self.database_url != "sqlite:///agriculture.db":
+            url = self.database_url
+        elif self.mysql_host:
+            url = f"mysql+pymysql://{self.mysql_user}:{self.mysql_password}@{self.mysql_host}:{self.mysql_port}/{self.mysql_db}"
+        else:
+            url = self.database_url
+
         if os.getenv("RENDER") == "true" and ("127.0.0.1" in url or "localhost" in url) and not url.startswith("sqlite"):
             url = "sqlite:///agriculture.db"
         if url.startswith("postgres://"):
