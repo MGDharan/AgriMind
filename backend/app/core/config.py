@@ -59,7 +59,12 @@ class Settings(BaseSettings):
         if self.database_url != "sqlite:///agriculture.db":
             url = self.database_url
         elif self.mysql_host:
-            url = f"mysql+pymysql://{self.mysql_user}:{self.mysql_password}@{self.mysql_host}:{self.mysql_port}/{self.mysql_db}"
+            if self.mysql_host.startswith("mysql://") or self.mysql_host.startswith("mysql+pymysql://"):
+                url = self.mysql_host
+                if url.startswith("mysql://"):
+                    url = url.replace("mysql://", "mysql+pymysql://", 1)
+            else:
+                url = f"mysql+pymysql://{self.mysql_user}:{self.mysql_password}@{self.mysql_host}:{self.mysql_port}/{self.mysql_db}"
         else:
             url = self.database_url
 
